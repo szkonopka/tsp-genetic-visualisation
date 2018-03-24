@@ -38,7 +38,6 @@ export default class Graph {
 				} else {
 					this.metrics[i][j] = this.metrics[j][i] = Math.sqrt(Math.pow((this.cities[i].position.x - this.cities[j].position.x), 2) + Math.pow((this.cities[i].position.y - this.cities[j].position.y), 2));
 				}
-				console.log(this.metrics[i][j]);
 			}
 		}
 	}
