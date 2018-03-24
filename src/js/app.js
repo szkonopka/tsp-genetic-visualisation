@@ -17,33 +17,43 @@ window.onload = function() {
 	camera.position.z = 5;
 	renderer.setClearColor(0x000000, 0);
 
-	const citiesAmount = 140;
+	const citiesAmount = 100;
 	const citiesPlane = new Graph(citiesAmount, scene);
 	citiesPlane.addCitiesToScene(scene);
 
-	const tspEngine = new TSPGenetic(citiesPlane, 1000, scene);
+	const tspEngine = new TSPGenetic(citiesPlane, 100, scene, 0.15, 0.85, 0.3);
+
+	function animate() {
+		requestAnimationFrame(animate);
+		renderer.render(scene, camera);
+	}
+	animate();
 
 	function onWindowResize() {
 	  camera.aspect = window.innerWidth / window.innerHeight;
 	  camera.updateProjectionMatrix();
 	  renderer.setSize(window.innerWidth, window.innerHeight);
 	}
+
 	window.addEventListener('resize', onWindowResize, false);
 
-	let start = false;
+	const statField = document.querySelectorAll('#stats')[0];
+
+	let statTemplate = `Current best dist: <strong>${tspEngine.bestDist}</strong>`;
+	statField.innerHTML = statTemplate;
+
 	document.querySelectorAll('button')[0].addEventListener('click', function() {
-		animate();
-		tspEngine.findBestPath();
-		for(let i = 0; i < 10000; i++) {
-			tspEngine.findBestPath();
-			requestAnimationFrame(tspEngine.refreshLines);
-			renderer.render(scene, camera);
-		}
+		let sceneProperties = {
+			renderer: renderer,
+			scene: scene,
+			camera: camera
+		};
+		let i = 0;
+		setInterval(() => {
+				i++;
+				tspEngine.findBestPath(sceneProperties);
+				statField.innerHTML = `Current best dist: <strong>${tspEngine.bestDist}</strong> <br/> Number of generation: ${i}`;
+				renderer.render(scene, camera);
+		}, 10);
 	});
-
-	function animate() {
-		requestAnimationFrame(animate);
-		renderer.render(scene, camera);
-	}
-
-};
+}

@@ -2,7 +2,7 @@ import Graph from './graph.js';
 import { Geometry, LineBasicMaterial, Line, Vector3 } from 'three';
 
 export default class TSPGenetic {
-	constructor(graph, _population, _scene) {
+	constructor(graph, _population, _scene, _mutationProb, _crossoverProb, _newPopSelectionProb) {
 		this.bestPath = [];
 		this.bestDist = Infinity;
 		this.populationSize = _population;
@@ -10,6 +10,9 @@ export default class TSPGenetic {
 		this.graph = graph;
 		this.scene = _scene;
 		this.fitnessScore = new Array(this.populationSize);
+		this.mutationProb = _mutationProb;
+		this.crossoverProb = _crossoverProb;
+		this.newPopSelectionProb = _newPopSelectionProb;
 		this.initPopulation();
 	}
 
@@ -18,11 +21,12 @@ export default class TSPGenetic {
 		this.population = new Array(this.populationSize);
 		for(let i = 0; i < this.populationSize; i++) {
 			this.population[i] = this.bestPath;
+			console.log(this.population[i]);
 		}
 		this.initLines();
 	}
 
-	findBestPath() {
+	findBestPath(sceneProperties) {
 		this.calcFitness();
 		this.normalizeFitness();
 		this.newGeneration();
@@ -31,18 +35,38 @@ export default class TSPGenetic {
 	newGeneration() {
 		let newPopulation = new Array(this.populationSize);
 		for(let i = 0; i < this.populationSize; i++) {
-			//newPopulation[i] = this.OXcrossover(this.population[this.pickBestOne()], this.population[this.pickBestOne()])
-			//newPopulation[i] = mutate
-			if(Math.random() < 0.8) {
-				this.mutate(this.population[i]);
+			newPopulation[i] = new Array(this.graph.size);
+			if(Math.random() < this.crossoverProb) {
+				newPopulation[i] = this.OXcrossover(this.population[this.pickBestOne()], this.population[this.pickBestOne()]);
+				//newPopulation[i] = this.population[i];
+			} else {
+				newPopulation[i] = this.population[i];
+			}
+
+			if(Math.random() < this.mutationProb) {
+				this.mutate(newPopulation[i]);
 			}
 		}
 
-		/*for(let i = 0; i < this.populationSize; i++) {
-			if(Math.random() > 0.3) {
+		for(let i = 0; i < this.populationSize; i++) {
+			if(this.newPopSelectionProb > Math.random()) {
 				this.population[i] = newPopulation[i];
+			} else {
+				this.population[this.getWorstIndividual()] = newPopulation[i];
 			}
-		}*/
+		}
+	}
+
+	getWorstIndividual() {
+		let currentDist, worstIndex, worstDistance = 0;
+		for(let i = 0; i < this.populationSize; i++) {
+			currentDist = this.calcDistance(this.population[i]);
+			if(currentDist > worstDistance) {
+				worstDistance = currentDist;
+				worstIndex = i;
+			}
+		}
+		return worstIndex;
 	}
 
 	pickBestOne() {
@@ -59,6 +83,7 @@ export default class TSPGenetic {
 		let start, end;
 		start = Math.floor(Math.random() * this.graph.size / 2);
 		end = Math.floor(Math.random() * this.graph.size / 2 + this.graph.size / 2);
+		console.log('start: ', start, ' end: ', end);
 		let len = end - start;
 		let child = new Array(this.graph.size);
 		for(let i = start; i < end; i++) {
@@ -69,7 +94,7 @@ export default class TSPGenetic {
 		while(counter < this.graph.size) {
 			i = i % this.graph.size;
 			j = j % this.graph.size;
-			if(child.includes(fParent[i])) {
+			if(!child.includes(fParent[i])) {
 				child[j] = fParent[i];
 				j++;
 			}
@@ -86,9 +111,15 @@ export default class TSPGenetic {
 	}
 
 	insert(population, indexA, indexB) {
-		let temp = population[indexA];
-		population[indexA] = population[indexB];
-		population[indexB] = temp;
+		let tmp;
+		if(indexA > indexB) {
+			tmp = indexA;
+			indexA = indexB;
+			indexB = tmp;
+		}
+
+		population.splice(indexA, 0, population[indexB]);
+		population.splice(indexB + 1, 1);
 	}
 
 	calcFitness() {
@@ -96,9 +127,9 @@ export default class TSPGenetic {
 		for(let i = 0; i < this.populationSize - 1; i++) {
 			tempDist = this.calcDistance(this.population[i]);
 			if(tempDist < this.bestDist) {
-				console.log(this.bestDist);
 				this.bestDist = tempDist;
 				this.bestPath = this.population[i];
+				this.refreshLines();
 			}
 			this.fitnessScore[i] = 1 / (tempDist + 1);
 		}
@@ -142,14 +173,16 @@ export default class TSPGenetic {
 			}
 			let line = new Line(geometry, material);
 			this.lines.push(line);
+			this.lines[i].geometry.dynamic = true;
 			this.scene.add(this.lines[i]);
+			this.lines[i].geometry.verticesNeedUpdate = true;
 			geometry.verticesNeedUpdate = true;
 		}
 	}
 
 	refreshLines() {
 		for(let i = 0; i < this.graph.size; i++) {
-			this.lines[i].geometry.verticesNeedUpdate = true;
+			this.lines[i].geometry.dynamic = true;
 			if(i < this.graph.size - 1) {
 				this.lines[i].geometry.vertices[0] = { x: this.graph.cities[this.bestPath[i]].position.x, y: this.graph.cities[this.bestPath[i]].position.y, z: 0 };
 				this.lines[i].geometry.vertices[1] = { x: this.graph.cities[this.bestPath[i + 1]].position.x, y: this.graph.cities[this.bestPath[i + 1]].position.y, z: 0 };
@@ -174,7 +207,7 @@ export default class TSPGenetic {
 			let bestDist = Infinity;
 			for(let j = 0; j < graphSize; j++) {
 				if(this.graph.metrics[i][j] < bestDist && visited[j] === 0) {
-					bestDist = this.graph.metrics[j][j];
+					bestDist = this.graph.metrics[i][i];
 					nextElem = j;
 				}
 			}
